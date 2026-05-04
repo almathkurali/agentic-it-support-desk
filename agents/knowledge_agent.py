@@ -1,27 +1,14 @@
-from rag.supabase_client import supabase
+from rag.rag_pipeline import run_rag
 
 def knowledge_agent(intake_result):
-    print("\n[KNOWLEDGE AGENT] Searching knowledge base...")
+    print("\n[KNOWLEDGE AGENT] Running RAG search...")
 
-    intent = intake_result["intent"]
+    user_question = intake_result["user_input"]
+    rag_result = run_rag(user_question)
 
-    if intent == "vpn_issue":
-        source = "vpn_guide"
-    elif intent == "wifi_issue":
-        source = "wifi_guide"
-    else:
-        source = None
-
-    query = supabase.table("knowledge_chunks").select("content")
-
-    if source:
-        query = query.eq("source", source)
-
-    response = query.limit(1).execute()
-
-    print("DEBUG:", response.data)
-
-    if response.data:
-        return response.data[0]["content"]
-
-    return "No solution found in the knowledge base."
+    return {
+        "agent": "knowledge_agent",
+        "answer": rag_result["answer"],
+        "confidence": rag_result["confidence"],
+        "sources": rag_result["sources"]
+    }
