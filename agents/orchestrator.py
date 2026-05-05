@@ -12,7 +12,7 @@ import json
 from typing import Annotated, Literal, TypedDict
  
 # Real agent imports
-from your_agents.escalation import escalation_agent   # ← adjust path to match your project
+from agents.escalation_agent import escalation_agent   # ← adjust path to match your project
  
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
