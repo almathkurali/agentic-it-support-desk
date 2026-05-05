@@ -2,11 +2,11 @@ import json
 import time
 from datetime import datetime, timezone
 
-from anthropic import Anthropic
+from openai import OpenAI
 from rag.supabase_client import supabase
 from rag.vector_store import search_similar_tickets
 
-client = Anthropic()
+client = OpenAI()
 
 SYSTEM_PROMPT = """You are the Intake Agent of an autonomous IT support platform.
 Your job is to classify an employee IT support request.
@@ -72,7 +72,7 @@ def _keyword_fallback(user_input: str) -> dict:
 
 
 def _classify(user_input: str, employee_id: str, device_info: str, conversation_history: list) -> dict:
-    """Run RAG search then call Claude to classify. Returns raw result dict."""
+    """Run RAG search then call the LLM to classify. Returns raw result dict."""
 
     # RAG — search for similar past tickets before classifying
     rag_results = []
@@ -94,16 +94,19 @@ def _classify(user_input: str, employee_id: str, device_info: str, conversation_
         f"{rag_context}"
     )
 
-    messages = conversation_history + [{"role": "user", "content": user_message}]
+    messages = (
+        [{"role": "system", "content": SYSTEM_PROMPT}]
+        + conversation_history
+        + [{"role": "user", "content": user_message}]
+    )
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=512,
-            system=SYSTEM_PROMPT,
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=messages,
+            temperature=0,
         )
-        raw = response.content[0].text.strip()
+        raw = response.choices[0].message.content.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
