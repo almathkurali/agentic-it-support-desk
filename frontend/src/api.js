@@ -43,7 +43,6 @@ export async function saveTicketToSupabase(ticket, result) {
         intent: result.intent,
         priority: result.priority,
         status: result.escalated ? "escalated" : "resolved",
-        created_at: new Date().toISOString(),
       }),
     });
   } catch (err) {
