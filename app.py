@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import os
 
 from agents.orchestrator import orchestrator
@@ -19,18 +20,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class TicketRequest(BaseModel):
     issue: str
 
+
 class LogResultRequest(BaseModel):
-    user_issue: str
-    intent: str
-    priority: str
-    status: str
+    user_issue:      str
+    intent:          str
+    priority:        str
+    status:          str
+    ticket_id:       Optional[str] = None
+    resolved:        bool = False
+    workflow_action: Optional[str] = None
+
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "a86c0b8", "cors": "explicit-origins"}
+    return {"status": "ok", "version": "schema-v2", "cors": "explicit-origins"}
+
 
 @app.post("/api/ticket")
 def submit_ticket(request: TicketRequest):
@@ -39,19 +47,38 @@ def submit_ticket(request: TicketRequest):
     result = orchestrator(request.issue)
     return result
 
+
 @app.post("/api/log-result")
 def log_result(request: LogResultRequest):
+    """
+    Called by the frontend after the agent pipeline completes.
+    - If ticket_id is set: UPDATE the existing ticket (created by escalation_agent)
+      with the final resolved status and workflow action.
+    - If no ticket_id: INSERT a new record (simulation / fallback mode).
+    """
     try:
         from rag.supabase_client import supabase
-        supabase.table("tickets").insert({
-            "user_issue": request.user_issue,
-            "intent":     request.intent,
-            "priority":   request.priority,
-            "status":     request.status,
-        }).execute()
+
+        if request.ticket_id:
+            supabase.table("tickets").update({
+                "status":          request.status,
+                "resolved":        request.resolved,
+                "workflow_action": request.workflow_action,
+            }).eq("ticket_id", request.ticket_id).execute()
+        else:
+            supabase.table("tickets").insert({
+                "user_issue": request.user_issue,
+                "intent":     request.intent,
+                "priority":   request.priority,
+                "status":     request.status,
+                "resolved":   request.resolved,
+            }).execute()
+
     except Exception as err:
-        print(f"[log-result] Supabase insert failed: {err}")
+        print(f"[log-result] Supabase error: {err}")
+
     return {"ok": True}
+
 
 if __name__ == "__main__":
     import uvicorn
