@@ -11,10 +11,11 @@ export default function AgentStep({ label, description, status = 'pending', dela
   if (!visible) return <div style={{ height: 64 }} />
 
   const colors = {
-    pending:  'var(--muted)',
-    running:  'var(--accent)',
-    done:     'var(--success)',
-    error:    'var(--danger)',
+    pending:   'var(--muted)',
+    running:   'var(--accent)',
+    done:      'var(--success)',
+    escalated: 'var(--warning)',
+    error:     'var(--danger)',
   }
   const color = colors[status] || colors.pending
 
@@ -44,6 +45,7 @@ export default function AgentStep({ label, description, status = 'pending', dela
             }} />
           )}
           {status === 'done' && <Icon name="check" size={14} color="white" />}
+          {status === 'escalated' && <Icon name="alert" size={14} color={color} />}
           {status === 'error' && <Icon name="alert" size={14} color={color} />}
           {status === 'pending' && (
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />

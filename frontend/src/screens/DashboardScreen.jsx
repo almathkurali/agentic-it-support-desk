@@ -8,7 +8,7 @@ const STATS = [
   { label: 'Avg Response',  value: '1.4m', delta: 'across all tickets' },
 ]
 
-export default function DashboardScreen({ tickets = [], setScreen }) {
+export default function DashboardScreen({ tickets = [], onNewTicket }) {
   return (
     <div className="fade-up" style={{ padding: 32 }}>
       <div style={{ marginBottom: 28 }}>
@@ -42,7 +42,7 @@ export default function DashboardScreen({ tickets = [], setScreen }) {
             Our AI agents will route and resolve your issue automatically
           </div>
         </div>
-        <button onClick={() => setScreen('ticket')} style={{
+        <button onClick={onNewTicket} style={{
           background: 'white', color: 'var(--accent)', border: 'none',
           borderRadius: 8, padding: '10px 20px', fontWeight: 700,
           fontSize: 14, cursor: 'pointer',

@@ -23,7 +23,7 @@ export default function TicketFormScreen({ onSubmit }) {
 
   function handleSubmit() {
     if (!description.trim()) return
-    onSubmit({ category, subject, description })
+    onSubmit({ body: description, subject, category })
   }
 
   return (

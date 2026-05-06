@@ -3,6 +3,13 @@ import AgentStep from "../components/AgentStep";
 import { simulateAgentPipeline } from "../data";
 import { submitTicket } from "../api";
 
+const AGENT_LABELS = {
+  intake:     "Intake Agent",
+  knowledge:  "Knowledge Agent",
+  workflow:   "Workflow Agent",
+  escalation: "Escalation Check",
+};
+
 export default function ProcessingScreen({ ticket, onGoToForm, onComplete, speed }) {
   const speedMs = (ms) => Math.round(ms / (speed || 1));
 
@@ -110,11 +117,10 @@ export default function ProcessingScreen({ ticket, onGoToForm, onComplete, speed
         {steps.map((s, i) => (
           <AgentStep
             key={s.agent + i}
-            agent={s.agent}
-            status={s.status}
-            detail={s.detail}
+            label={AGENT_LABELS[s.agent] || s.agent}
+            description={s.detail}
+            status={s.status === "waiting" ? "pending" : s.status}
             delay={i * 150}
-            isLast={i === steps.length - 1}
           />
         ))}
       </div>
