@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import os
 
 from agents.orchestrator import orchestrator
+from rag.supabase_client import supabase
 
 app = FastAPI(title="IT Support Desk API")
 
@@ -22,6 +23,12 @@ app.add_middleware(
 class TicketRequest(BaseModel):
     issue: str
 
+class LogResultRequest(BaseModel):
+    user_issue: str
+    intent: str
+    priority: str
+    status: str
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -32,6 +39,19 @@ def submit_ticket(request: TicketRequest):
         raise HTTPException(status_code=400, detail="Issue description is required")
     result = orchestrator(request.issue)
     return result
+
+@app.post("/api/log-result")
+def log_result(request: LogResultRequest):
+    try:
+        supabase.table("tickets").insert({
+            "user_issue": request.user_issue,
+            "intent":     request.intent,
+            "priority":   request.priority,
+            "status":     request.status,
+        }).execute()
+    except Exception as err:
+        print(f"[log-result] Supabase insert failed: {err}")
+    return {"ok": True}
 
 if __name__ == "__main__":
     import uvicorn

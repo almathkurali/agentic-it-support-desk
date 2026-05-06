@@ -1,7 +1,6 @@
 import { simulateAgentPipeline } from "./data";
+
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const SUPABASE_URL = "https://eswobqtykuqnwmvhxqex.supabase.co";
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 function mapApiResponse(data) {
   const { intake, primary_result, escalation } = data;
@@ -25,28 +24,23 @@ function mapApiResponse(data) {
 }
 
 export async function saveTicketToSupabase(ticket, result) {
-  if (!SUPABASE_KEY) {
-    console.warn("VITE_SUPABASE_KEY not set — skipping Supabase write");
+  if (!BACKEND_URL) {
+    console.warn("No backend URL — skipping ticket log");
     return;
   }
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/tickets`, {
+    await fetch(`${BACKEND_URL}/api/log-result`, {
       method: "POST",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_issue: ticket.body,
-        intent: result.intent,
-        priority: result.priority,
-        status: result.escalated ? "escalated" : "resolved",
+        intent:     result.intent,
+        priority:   result.priority,
+        status:     result.escalated ? "escalated" : "resolved",
       }),
     });
   } catch (err) {
-    console.warn("Supabase write failed:", err.message);
+    console.warn("log-result failed:", err.message);
   }
 }
 
