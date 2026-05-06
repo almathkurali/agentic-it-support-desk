@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import os
 
 from agents.orchestrator import orchestrator
-from rag.supabase_client import supabase
 
 app = FastAPI(title="IT Support Desk API")
 
@@ -31,7 +30,7 @@ class LogResultRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "a86c0b8", "cors": "explicit-origins"}
 
 @app.post("/api/ticket")
 def submit_ticket(request: TicketRequest):
@@ -43,6 +42,7 @@ def submit_ticket(request: TicketRequest):
 @app.post("/api/log-result")
 def log_result(request: LogResultRequest):
     try:
+        from rag.supabase_client import supabase
         supabase.table("tickets").insert({
             "user_issue": request.user_issue,
             "intent":     request.intent,
