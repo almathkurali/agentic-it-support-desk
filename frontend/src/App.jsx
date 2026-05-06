@@ -9,12 +9,7 @@ import HistoryScreen from "./screens/HistoryScreen";
 import { SAMPLE_TICKETS } from "./data";
 import { saveTicketToSupabase } from "./api";
 
-const TWEAK_DEFAULTS = {
-  accentHue: 250,
-  darkSidebar: true,
-  animSpeed: 1,
-  demoMode: true,
-};
+const TWEAK_DEFAULTS = { accentHue: 250, darkSidebar: true, animSpeed: 1, demoMode: true };
 
 function applyTweaks(tweaks) {
   const root = document.documentElement;
@@ -44,22 +39,14 @@ export default function App() {
     try {
       const saved = localStorage.getItem("it_support_tickets");
       return saved ? JSON.parse(saved) : SAMPLE_TICKETS;
-    } catch {
-      return SAMPLE_TICKETS;
-    }
+    } catch { return SAMPLE_TICKETS; }
   });
   const [showTweaks, setShowTweaks] = useState(false);
   const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS);
 
-  const setTweak = (key, value) => {
-    const next = { ...tweaks, [key]: value };
-    setTweaksState(next);
-    applyTweaks(next);
-  };
+  const setTweak = (key, value) => { const next = { ...tweaks, [key]: value }; setTweaksState(next); applyTweaks(next); };
 
-  useEffect(() => {
-    localStorage.setItem("it_support_tickets", JSON.stringify(tickets));
-  }, [tickets]);
+  useEffect(() => { localStorage.setItem("it_support_tickets", JSON.stringify(tickets)); }, [tickets]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -71,17 +58,8 @@ export default function App() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  const handleNewTicket = () => {
-    setScreen("form");
-    setActiveTicket(null);
-    setAgentResult(null);
-  };
-
-  const handleSubmit = (ticket) => {
-    setActiveTicket(ticket);
-    setScreen("processing");
-  };
-
+  const handleNewTicket = () => { setScreen("form"); setActiveTicket(null); setAgentResult(null); };
+  const handleSubmit = (ticket) => { setActiveTicket(ticket); setScreen("processing"); };
   const handleComplete = (result) => {
     const newEntry = {
       id: result.ticketId || ("TKT-" + String(Math.floor(Math.random() * 9000) + 1000)),
@@ -97,29 +75,22 @@ export default function App() {
     saveTicketToSupabase(activeTicket, result);
   };
 
-  const sidebarActiveScreen = ["dashboard", "history"].includes(screen) ? screen : null;
-
   const renderScreen = () => {
     switch (screen) {
-      case "dashboard":
-        return <DashboardScreen onNewTicket={handleNewTicket} tickets={tickets} />;
-      case "form":
-        return <TicketFormScreen onSubmit={handleSubmit} onBack={() => setScreen("dashboard")} demoMode={tweaks.demoMode} />;
-      case "processing":
-        return <ProcessingScreen ticket={activeTicket} onGoToForm={() => setScreen("form")} onComplete={handleComplete} speed={tweaks.animSpeed} />;
+      case "dashboard":   return <DashboardScreen onNewTicket={handleNewTicket} tickets={tickets} />;
+      case "form":        return <TicketFormScreen onSubmit={handleSubmit} onBack={() => setScreen("dashboard")} demoMode={tweaks.demoMode} />;
+      case "processing":  return <ProcessingScreen ticket={activeTicket} onGoToForm={() => setScreen("form")} onComplete={handleComplete} speed={tweaks.animSpeed} />;
       case "resolution":
         if (!agentResult) { setScreen("dashboard"); return null; }
         return <ResolutionScreen ticket={activeTicket} result={agentResult} onNewTicket={handleNewTicket} />;
-      case "history":
-        return <HistoryScreen tickets={tickets} />;
-      default:
-        return null;
+      case "history":     return <HistoryScreen tickets={tickets} />;
+      default:            return null;
     }
   };
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      <Sidebar activeScreen={sidebarActiveScreen} setScreen={setScreen} tickets={tickets} onNewTicket={handleNewTicket} />
+      <Sidebar activeScreen={screen} setScreen={setScreen} tickets={tickets} onNewTicket={handleNewTicket} />
       <main style={{ flex: 1, overflowY: "auto", background: "oklch(0.97 0.005 240)" }}>
         {renderScreen()}
       </main>
