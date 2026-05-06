@@ -1,58 +1,131 @@
-import React, { useState } from 'react'
-import Sidebar from './components/Sidebar'
-import TweaksPanel from './components/TweaksPanel'
-import DashboardScreen from './screens/DashboardScreen'
-import TicketFormScreen from './screens/TicketFormScreen'
-import ProcessingScreen from './screens/ProcessingScreen'
-import ResolutionScreen from './screens/ResolutionScreen'
-import HistoryScreen from './screens/HistoryScreen'
-import { SAMPLE_TICKETS } from './data'
+import { useState, useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import TweaksPanel from "./components/TweaksPanel";
+import DashboardScreen from "./screens/DashboardScreen";
+import TicketFormScreen from "./screens/TicketFormScreen";
+import ProcessingScreen from "./screens/ProcessingScreen";
+import ResolutionScreen from "./screens/ResolutionScreen";
+import HistoryScreen from "./screens/HistoryScreen";
+import { SAMPLE_TICKETS } from "./data";
+import { saveTicketToSupabase } from "./api";
+
+const TWEAK_DEFAULTS = {
+  accentHue: 250,
+  darkSidebar: true,
+  animSpeed: 1,
+  demoMode: true,
+};
+
+function applyTweaks(tweaks) {
+  const root = document.documentElement;
+  root.style.setProperty("--accent",       `oklch(0.55 0.2 ${tweaks.accentHue})`);
+  root.style.setProperty("--accent-light", `oklch(0.92 0.06 ${tweaks.accentHue})`);
+  root.style.setProperty("--accent-dim",   `oklch(0.65 0.15 ${tweaks.accentHue})`);
+  if (tweaks.darkSidebar) {
+    root.style.setProperty("--sidebar-bg",     "oklch(0.16 0.02 255)");
+    root.style.setProperty("--sidebar-text",   "oklch(0.72 0.04 250)");
+    root.style.setProperty("--sidebar-muted",  "oklch(0.45 0.03 250)");
+    root.style.setProperty("--sidebar-hover",  "oklch(0.22 0.03 255)");
+    root.style.setProperty("--sidebar-active", "oklch(0.26 0.05 255)");
+  } else {
+    root.style.setProperty("--sidebar-bg",     "oklch(0.94 0.01 240)");
+    root.style.setProperty("--sidebar-text",   "oklch(0.3 0.01 250)");
+    root.style.setProperty("--sidebar-muted",  "oklch(0.55 0.01 250)");
+    root.style.setProperty("--sidebar-hover",  "oklch(0.9 0.01 240)");
+    root.style.setProperty("--sidebar-active", "oklch(0.86 0.04 250)");
+  }
+}
 
 export default function App() {
-  const [screen, setScreen] = useState('dashboard')
-  const [ticket, setTicket] = useState(null)
-  const [result, setResult] = useState(null)
-  const [history, setHistory] = useState(SAMPLE_TICKETS)
-  const [demo, setDemo] = useState(true)
-  const [hue, setHue] = useState(250)
-  const [speed, setSpeed] = useState('normal')
-
-  function handleSubmit(t) {
-    setTicket(t)
-    setScreen('pipeline')
-  }
-
-  function handleDone(r) {
-    setResult(r)
-    const newTicket = {
-      id: `TKT-${String(history.length + 1).padStart(4, '0')}`,
-      subject: ticket?.subject || ticket?.description?.slice(0, 40),
-      category: ticket?.category || 'unknown',
-      status: r.escalated ? 'escalated' : 'resolved',
-      priority: r.priority || 'medium',
-      time: 'just now',
+  const [screen, setScreen] = useState("dashboard");
+  const [activeTicket, setActiveTicket] = useState(null);
+  const [agentResult, setAgentResult] = useState(null);
+  const [tickets, setTickets] = useState(() => {
+    try {
+      const saved = localStorage.getItem("it_support_tickets");
+      return saved ? JSON.parse(saved) : SAMPLE_TICKETS;
+    } catch {
+      return SAMPLE_TICKETS;
     }
-    setHistory(h => [newTicket, ...h])
-    setScreen('resolution')
-  }
+  });
+  const [showTweaks, setShowTweaks] = useState(false);
+  const [tweaks, setTweaksState] = useState(TWEAK_DEFAULTS);
 
-  function handleNewTicket() {
-    setTicket(null)
-    setResult(null)
-    setScreen('ticket')
-  }
+  const setTweak = (key, value) => {
+    const next = { ...tweaks, [key]: value };
+    setTweaksState(next);
+    applyTweaks(next);
+  };
+
+  useEffect(() => {
+    localStorage.setItem("it_support_tickets", JSON.stringify(tickets));
+  }, [tickets]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === "__activate_edit_mode") setShowTweaks(true);
+      if (e.data?.type === "__deactivate_edit_mode") setShowTweaks(false);
+    };
+    window.addEventListener("message", handler);
+    window.parent.postMessage({ type: "__edit_mode_available" }, "*");
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  const handleNewTicket = () => {
+    setScreen("form");
+    setActiveTicket(null);
+    setAgentResult(null);
+  };
+
+  const handleSubmit = (ticket) => {
+    setActiveTicket(ticket);
+    setScreen("processing");
+  };
+
+  const handleComplete = (result) => {
+    const newEntry = {
+      id: result.ticketId || ("TKT-" + String(Math.floor(Math.random() * 9000) + 1000)),
+      subject: activeTicket.subject || activeTicket.body.slice(0, 50),
+      category: activeTicket.category || "other",
+      status: result.escalated ? "escalated" : "resolved",
+      time: "just now",
+      priority: result.priority || "medium",
+    };
+    setTickets(prev => [newEntry, ...prev]);
+    setAgentResult(result);
+    setScreen("resolution");
+    saveTicketToSupabase(activeTicket, result);
+  };
+
+  const sidebarActiveScreen = ["dashboard", "history"].includes(screen) ? screen : null;
+
+  const renderScreen = () => {
+    switch (screen) {
+      case "dashboard":
+        return <DashboardScreen onNewTicket={handleNewTicket} tickets={tickets} />;
+      case "form":
+        return <TicketFormScreen onSubmit={handleSubmit} onBack={() => setScreen("dashboard")} demoMode={tweaks.demoMode} />;
+      case "processing":
+        return <ProcessingScreen ticket={activeTicket} onGoToForm={() => setScreen("form")} onComplete={handleComplete} speed={tweaks.animSpeed} />;
+      case "resolution":
+        if (!agentResult) { setScreen("dashboard"); return null; }
+        return <ResolutionScreen ticket={activeTicket} result={agentResult} onNewTicket={handleNewTicket} />;
+      case "history":
+        return <HistoryScreen tickets={tickets} />;
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar screen={screen} setScreen={setScreen} recentTickets={history} />
-      <main style={{ flex: 1, overflowY: 'auto', background: 'oklch(0.97 0.005 240)' }}>
-        {screen === 'dashboard'  && <DashboardScreen tickets={history} setScreen={setScreen} />}
-        {screen === 'ticket'     && <TicketFormScreen onSubmit={handleSubmit} />}
-        {screen === 'pipeline'   && <ProcessingScreen ticket={ticket} onDone={handleDone} />}
-        {screen === 'resolution' && <ResolutionScreen ticket={ticket} result={result} onNewTicket={handleNewTicket} />}
-        {screen === 'history'    && <HistoryScreen tickets={history} />}
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Sidebar activeScreen={sidebarActiveScreen} setScreen={setScreen} tickets={tickets} onNewTicket={handleNewTicket} />
+      <main style={{ flex: 1, overflowY: "auto", background: "oklch(0.97 0.005 240)" }}>
+        {renderScreen()}
       </main>
-      <TweaksPanel demo={demo} setDemo={setDemo} hue={hue} setHue={setHue} speed={speed} setSpeed={setSpeed} />
+      {showTweaks && (
+        <TweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setShowTweaks(false); window.parent.postMessage({ type: "__edit_mode_dismissed" }, "*"); }} />
+      )}
     </div>
-  )
+  );
 }
