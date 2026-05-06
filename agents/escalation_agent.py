@@ -1,4 +1,5 @@
 from rag.supabase_client import supabase
+from datetime import datetime
 
 
 def escalation_agent(context):
@@ -12,9 +13,20 @@ def escalation_agent(context):
         intake.get("confidence", context.get("confidence", 0))
     )
 
-    priority = intake.get("priority", context.get("priority", "low"))
-    intent = intake.get("intent", context.get("intent", "unknown"))
-    user_issue = intake.get("user_input", context.get("user_input", ""))
+    priority = intake.get(
+        "priority",
+        context.get("priority", "low")
+    )
+
+    intent = intake.get(
+        "intent",
+        context.get("intent", "unknown")
+    )
+
+    user_issue = intake.get(
+        "user_input",
+        context.get("user_input", "")
+    )
 
     ticket_id = (
         context.get("ticket_id")
@@ -28,43 +40,64 @@ def escalation_agent(context):
         or intent == "unknown"
     )
 
+    # No escalation needed
     if not should_escalate:
         return {
             "agent": "escalation_agent",
             "escalated": False,
             "ticket_id": ticket_id,
             "priority": priority,
-            "reason": "No escalation needed because confidence is acceptable and priority is not high.",
-            "message": "This issue can be handled automatically using the knowledge base response."
+            "reason": (
+                "No escalation needed because confidence is acceptable "
+                "and priority is not high."
+            ),
+            "message": (
+                "This issue can be handled automatically using the "
+                "knowledge base response."
+            )
         }
 
     escalation_reason = (
-        "Escalated because confidence is low, priority is high, or issue type is unknown."
+        "Escalated because confidence is low, "
+        "priority is high, or issue type is unknown."
     )
 
-    # If intake already created a ticket, update that ticket instead of creating a duplicate.
+    # If ticket already exists, update it
     if ticket_id:
+
         response = supabase.table("tickets").update({
             "status": "escalated",
             "priority": priority,
-            "escalation_reason": escalation_reason
         }).eq("ticket_id", ticket_id).execute()
 
         updated_ticket = response.data[0] if response.data else {}
-        final_ticket_id = updated_ticket.get("ticket_id", ticket_id)
 
-    # If no ticket exists yet, create one.
+        final_ticket_id = updated_ticket.get(
+            "ticket_id",
+            ticket_id
+        )
+
+    # Otherwise create a new ticket
     else:
+
+        generated_ticket_id = (
+            f"TICKET-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
+
         response = supabase.table("tickets").insert({
+            "ticket_id": generated_ticket_id,
             "user_issue": user_issue,
             "intent": intent,
             "priority": priority,
             "status": "escalated",
-            "escalation_reason": escalation_reason
         }).execute()
 
         created_ticket = response.data[0] if response.data else {}
-        final_ticket_id = created_ticket.get("ticket_id", created_ticket.get("id", "UNKNOWN"))
+
+        final_ticket_id = created_ticket.get(
+            "ticket_id",
+            generated_ticket_id
+        )
 
     return {
         "agent": "escalation_agent",
