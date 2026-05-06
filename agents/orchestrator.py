@@ -1,11 +1,11 @@
 """
 IT Support Multi-Agent Orchestrator
 Pure Python — no LangGraph, no LangChain.
-Only dependency: anthropic (pip install anthropic)
+Only dependency: OpenAI (pip install OpenAI)
 
 Architecture:
   TicketState  – plain dataclass holding all shared state
-  llm_router() – calls Claude to decide the next agent
+  llm_router() – calls OpenAI to decide the next agent
   run_*()      – one wrapper per agent; mutates state in-place
   Orchestrator – the main loop that ties everything together
 """
@@ -17,12 +17,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
-import anthropic
+from openai import OpenAI
 
-# Real agent import — adjust the path to match your project layout
-from your_agents.escalation import escalation_agent   # ← update this
-
-
+# Real agent 
+from agents.escalation_agent import escalation_agent
 # ─────────────────────────────────────────────
 # 1. STATE
 #    A plain dataclass; every agent reads from
@@ -92,7 +90,7 @@ Respond ONLY with a JSON object like: {"next": "knowledge"}
 Do not explain. Do not add any other text.
 """
 
-_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 def llm_router(state: TicketState) -> str:
     """Ask Claude what the next agent should be. Returns agent name string."""
@@ -108,21 +106,19 @@ def llm_router(state: TicketState) -> str:
         "ticket_id":       state.ticket_id,
         "last_message":    state.last_message(),
     }
-
-    response = _client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=64,
-        system=ROUTER_SYSTEM_PROMPT,
-        messages=[{
+    response = _client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
+        {
             "role": "user",
-            "content": (
-                f"Current state:\n{json.dumps(state_snapshot, indent=2)}"
-                f"\n\nWhat is the next agent?"
-            ),
-        }],
-    )
+            "content": f"Current state:\n{json.dumps(state_snapshot, indent=2)}\n\nWhat is the next agent?",
+        },
+    ],
+    temperature=0,
+)
 
-    raw = response.content[0].text.strip()
+    raw = response.choices[0].message.content.strip()
     try:
         decision = json.loads(raw)
         next_agent = decision.get("next", "escalation")
@@ -325,6 +321,30 @@ class Orchestrator:
 
 # ─────────────────────────────────────────────
 # 5. ENTRY POINT
+def orchestrator(user_input: str) -> dict:
+    initial_state = TicketState(
+        ticket_text=user_input,
+        employee_id="unknown"
+    )
+
+    runner = Orchestrator(max_steps=10)
+    final_state = runner.run(initial_state)
+
+    return {
+        "user_input": final_state.ticket_text,
+        "employee_id": final_state.employee_id,
+        "category": final_state.ticket_category,
+        "intent": final_state.intent,
+        "priority": final_state.priority,
+        "kb_results": final_state.kb_results,
+        "kb_confidence": final_state.kb_confidence,
+        "workflow_attempted": final_state.workflow_attempted,
+        "workflow_result": final_state.workflow_result,
+        "ticket_id": final_state.ticket_id,
+        "escalation_summary": final_state.escalation_summary,
+        "resolved": final_state.resolved,
+        "messages": final_state.messages,
+    }
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
