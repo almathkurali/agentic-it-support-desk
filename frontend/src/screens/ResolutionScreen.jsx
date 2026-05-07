@@ -1,8 +1,12 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import Icon from '../components/Icon'
 import Badge from '../components/Badge'
 
 export default function ResolutionScreen({ ticket, result, onNewTicket }) {
+  useEffect(() => {
+    console.log("[ResolutionScreen] result prop on mount:", result);
+  }, []);
+
   if (!result) return null
   const { intent, priority, confidence, escalated, resolution } = result
   const pct = Math.round((confidence || 0) * 100)
