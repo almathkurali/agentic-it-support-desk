@@ -71,7 +71,10 @@ export async function submitTicket(issue, signal) {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    return mapApiResponse(data);
+    console.log("[api] raw /api/ticket response:", data);
+    const mapped = mapApiResponse(data);
+    console.log("[api] mapApiResponse result:", mapped);
+    return mapped;
   } catch (err) {
     if (err.name === "AbortError") return null;
     console.warn("Backend unavailable, using simulation:", err.message);
