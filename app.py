@@ -52,19 +52,23 @@ def submit_ticket(request: TicketRequest):
 def log_result(request: LogResultRequest):
     """
     Called by the frontend after the agent pipeline completes.
-    - If ticket_id is set: UPDATE the existing ticket (created by escalation_agent)
-      with the final resolved status and workflow action.
+    - If ticket_id is set: upsert by ticket_id (escalation_agent only updates, never inserts,
+      so the row may not exist yet — upsert creates it if missing, updates if present).
     - If no ticket_id: INSERT a new record (simulation / fallback mode).
     """
     try:
         from rag.supabase_client import supabase
 
         if request.ticket_id:
-            supabase.table("tickets").update({
+            supabase.table("tickets").upsert({
+                "ticket_id":       request.ticket_id,
+                "user_issue":      request.user_issue,
+                "intent":          request.intent,
+                "priority":        request.priority,
                 "status":          request.status,
                 "resolved":        request.resolved,
                 "workflow_action": request.workflow_action,
-            }).eq("ticket_id", request.ticket_id).execute()
+            }, on_conflict="ticket_id").execute()
         else:
             supabase.table("tickets").insert({
                 "user_issue": request.user_issue,

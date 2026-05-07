@@ -16,6 +16,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Optional
+from datetime import datetime
 
 from openai import OpenAI
 
@@ -155,6 +156,9 @@ def run_intake_agent(state: TicketState) -> None:
     state.ticket_category = "password"
     state.priority        = "P2"
     state.intent          = "password_reset"
+   
+    if not state.ticket_id:
+        state.ticket_id = f"TICKET-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     # ─────────────────────────────────────────────────────────────────────
 
     msg = (
@@ -189,30 +193,28 @@ def run_knowledge_agent(state: TicketState) -> None:
 
 
 def run_workflow_agent(state: TicketState) -> None:
-    """
-    Workflow Agent: executes automated fixes.
-    NOT YET BUILT — handles the user confirmation gate for now.
-    """
-    # Ask for confirmation if we haven't yet
+
+        # Expect confirmation to already exist in state from the UI/API layer
     if state.user_confirmed is None:
-        msg = (
-            "I can attempt to automatically reset your password. "
-            "Should I proceed? (Reply 'yes' to confirm or 'no' to escalate to a human.)"
-        )
         state.workflow_result = "awaiting_confirmation"
+
+        msg = (
+            "I can attempt to automatically resolve this issue. "
+            "Would you like me to proceed?"
+        )
+
         state.add_message("assistant", "workflow_agent", msg)
-        print(f"[WORKFLOW]   {msg}")
+        print(f"[WORKFLOW] {msg}")
+        return
+    
+    if state.user_confirmed is False:
+        state.workflow_result = "not_attempted"
 
-        # In a real app this would pause and wait for user input via your UI.
-        # Here we read from stdin so you can test interactively.
-        answer = input("Your answer (yes/no): ").strip().lower()
-        state.user_confirmed = answer == "yes"
+        msg = "User declined automation. Routing to escalation."
 
-        if not state.user_confirmed:
-            state.workflow_result = "not_attempted"
-            state.add_message("assistant", "workflow_agent", "User declined. Routing to escalation.")
-            print("[WORKFLOW]   User declined. Routing to escalation.")
-            return
+        state.add_message("assistant", "workflow_agent", msg)
+        print(f"[WORKFLOW] {msg}")
+        return
 
     # ── YOUR AGENT GOES HERE (when built) ────────────────────────────────
     # result = your_workflow_agent.execute(state.ticket_category, state.employee_id)
@@ -291,39 +293,53 @@ AGENT_MAP: dict[str, callable] = {
 }
 
 class Orchestrator:
+
     def __init__(self, max_steps: int = 10):
         self.max_steps = max_steps
 
+
     def run(self, state: TicketState) -> TicketState:
+
         print("=== IT Support Orchestrator started ===\n")
+
         state.add_message("user", "user", state.ticket_text)
 
         for step in range(self.max_steps):
-            # 1. Ask the LLM what to do next
+
+            # 1. Ask router where to go
             next_agent = llm_router(state)
             state.next_agent = next_agent
-            print(f"[ROUTER]     → {next_agent.upper()}")
 
-            # 2. Terminal condition
+            print(f"[ROUTER]      → {next_agent.upper()}")
+
+            # 2. End condition
             if next_agent == "end":
                 state.resolved = True
                 print("\n=== Ticket resolved. ===")
-                break
+                return state
 
-            # 3. Run the chosen agent
+            # 3. Get selected agent
             agent_fn = AGENT_MAP.get(next_agent)
-            if agent_fn is None:
-                print(f"[ROUTER]     Unknown agent '{next_agent}', escalating.")
-                run_escalation_agent(state)
-                break
 
+            # 4. Unknown route safety
+            if agent_fn is None:
+                print(f"[ROUTER] Unknown agent '{next_agent}', escalating.")
+                run_escalation_agent(state)
+                return state
+
+            # 5. Run agent
             agent_fn(state)
+
+            # 6. Pause flow if waiting for user
+            if state.workflow_result == "awaiting_confirmation":
+                print("[ORCHESTRATOR] Waiting for user confirmation. Pausing flow.")
+                return state
+
             print()
 
-        else:
-            # Safety: exceeded max steps without resolving
-            print(f"[ORCHESTRATOR] Max steps ({self.max_steps}) reached. Force-escalating.")
-            run_escalation_agent(state)
+        # 7. Safety fallback
+        print(f"[ORCHESTRATOR] Max steps ({self.max_steps}) reached. Force-escalating.")
+        run_escalation_agent(state)
 
         return state
 
@@ -355,20 +371,24 @@ def orchestrator(user_input: str) -> dict:
         "messages": final_state.messages,
     }
 # ─────────────────────────────────────────────
-
+"""
 if __name__ == "__main__":
     initial_state = TicketState(
         ticket_text="I forgot my password and can't log in.",
         employee_id="emp_00123",
+        user_confirmed=True,
+
     )
 
     orchestrator = Orchestrator(max_steps=10)
     final_state  = orchestrator.run(initial_state)
 
     print("\n=== Final State Summary ===")
-    print(f"Resolved:   {final_state.resolved}")
-    print(f"Ticket ID:  {final_state.ticket_id}")
-    print(f"Category:   {final_state.ticket_category}")
-    print(f"Priority:   {final_state.priority}")
-    if final_state.escalation_summary:
-        print(f"\nEscalation summary:\n{final_state.escalation_summary}")
+    print(f"Resolved:  {final_state.resolved}")
+    print(f"Ticket ID: {final_state.ticket_id}")
+    print(f"Category:  {final_state.ticket_category}")
+    print(f"Priority:  {final_state.priority}")
+
+if final_state.escalation_summary:
+    print(f"\nEscalation summary:\n{final_state.escalation_summary}")
+    """
