@@ -30,7 +30,10 @@ export default function ProcessingScreen({ ticket, onGoToForm, onComplete, speed
       return;
     }
 
-    const apiPromise = submitTicket(ticket.body);
+    const controller = new AbortController();
+    let innerTimer = null;
+
+    const apiPromise = submitTicket(ticket.body, controller.signal);
 
     const t1 = setTimeout(() => {
       setSteps(prev => prev.map((s, i) => {
@@ -58,6 +61,8 @@ export default function ProcessingScreen({ ticket, onGoToForm, onComplete, speed
 
     const t3 = setTimeout(async () => {
       const result = await apiPromise.catch(() => simulated);
+      if (controller.signal.aborted) return;
+
       const finalResult = result || simulated;
       const escalated = finalResult.escalated;
 
@@ -70,13 +75,17 @@ export default function ProcessingScreen({ ticket, onGoToForm, onComplete, speed
         return s;
       }));
 
-      setTimeout(() => onComplete(finalResult), speedMs(800));
+      innerTimer = setTimeout(() => {
+        if (!controller.signal.aborted) onComplete(finalResult);
+      }, speedMs(800));
     }, speedMs(5600));
 
     return () => {
+      controller.abort();
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      if (innerTimer) clearTimeout(innerTimer);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

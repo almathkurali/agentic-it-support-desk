@@ -60,15 +60,27 @@ def log_result(request: LogResultRequest):
         from rag.supabase_client import supabase
 
         if request.ticket_id:
-            supabase.table("tickets").upsert({
-                "ticket_id":       request.ticket_id,
-                "user_issue":      request.user_issue,
-                "intent":          request.intent,
-                "priority":        request.priority,
+            # Try UPDATE first (ticket created by intake_agent or escalation_agent).
+            # Only touch the fields that finalize a ticket — avoids re-writing
+            # classification data and prevents spurious updated_at changes.
+            response = supabase.table("tickets").update({
                 "status":          request.status,
                 "resolved":        request.resolved,
                 "workflow_action": request.workflow_action,
-            }, on_conflict="ticket_id").execute()
+            }).eq("ticket_id", request.ticket_id).execute()
+
+            if not response.data:
+                # Ticket wasn't created by the agent pipeline (e.g. orchestrator stub),
+                # so INSERT the full record now.
+                supabase.table("tickets").insert({
+                    "ticket_id":       request.ticket_id,
+                    "user_issue":      request.user_issue,
+                    "intent":          request.intent,
+                    "priority":        request.priority,
+                    "status":          request.status,
+                    "resolved":        request.resolved,
+                    "workflow_action": request.workflow_action,
+                }).execute()
         else:
             supabase.table("tickets").insert({
                 "user_issue": request.user_issue,

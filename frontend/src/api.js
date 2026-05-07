@@ -58,7 +58,7 @@ export async function saveTicketToSupabase(ticket, result) {
   }
 }
 
-export async function submitTicket(issue) {
+export async function submitTicket(issue, signal) {
   if (!BACKEND_URL) {
     return simulateAgentPipeline(issue);
   }
@@ -67,11 +67,13 @@ export async function submitTicket(issue) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ issue }),
+      signal,
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     return mapApiResponse(data);
   } catch (err) {
+    if (err.name === "AbortError") return null;
     console.warn("Backend unavailable, using simulation:", err.message);
     return simulateAgentPipeline(issue);
   }
