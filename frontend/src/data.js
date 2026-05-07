@@ -9,9 +9,9 @@ export const SAMPLE_TICKETS = [
 
 export const DEMO_SCENARIOS = [
   { label: "WiFi Setup",     value: "wifi",     text: "My laptop can't connect to the office WiFi. It keeps saying authentication failed." },
-  { label: "VPN Issue",      value: "vpn",      text: "My VPN won't connect. I'm getting a timeout error when I try to log in remotely." },
+  { label: "VPN",            value: "vpn",      text: "My VPN won't connect. I'm getting a timeout error when I try to log in remotely." },
   { label: "Password Reset", value: "password", text: "I forgot my password and I'm locked out of my account. Can you help me reset it?" },
-  { label: "Unknown Issue",  value: "unknown",  text: "My computer is making a weird noise and things are running slow today." },
+  { label: "Unknown",        value: "unknown",  text: "My computer is making a weird noise and things are running slow today." },
 ];
 
 export function simulateAgentPipeline(text) {
