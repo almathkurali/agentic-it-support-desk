@@ -193,20 +193,10 @@ def run_knowledge_agent(state: TicketState) -> None:
 
 
 def run_workflow_agent(state: TicketState) -> None:
-
-        # Expect confirmation to already exist in state from the UI/API layer
+    # No interactive UI — auto-confirm so the workflow completes in one pass
     if state.user_confirmed is None:
-        state.workflow_result = "awaiting_confirmation"
+        state.user_confirmed = True
 
-        msg = (
-            "I can attempt to automatically resolve this issue. "
-            "Would you like me to proceed?"
-        )
-
-        state.add_message("assistant", "workflow_agent", msg)
-        print(f"[WORKFLOW] {msg}")
-        return
-    
     if state.user_confirmed is False:
         state.workflow_result = "not_attempted"
 

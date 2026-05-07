@@ -21,15 +21,24 @@ function mapApiResponse(data) {
   const answer = data.kb_results?.length > 0 ? data.kb_results.join("\n") : null;
   const automated = data.workflow_attempted && data.workflow_result === "success";
 
+  const PRIORITY_MAP = { P1: "high", P2: "high", P3: "medium", P4: "low" };
+  const priority = PRIORITY_MAP[data.priority] || data.priority || "low";
+
+  // Fall back to the workflow agent's message when kb_results is empty
+  const workflowMsg =
+    !answer && data.workflow_result && data.workflow_result !== "awaiting_confirmation"
+      ? ([...(data.messages ?? [])].reverse().find(m => m.agent === "workflow_agent")?.content ?? null)
+      : null;
+
   return {
     intent:       data.intent      || "unknown",
-    priority:     data.priority    || "low",
+    priority,
     confidence:   data.kb_confidence ?? 0,
     escalated,
     primaryAgent: data.workflow_attempted ? "workflow_agent" : "knowledge_agent",
     ticketId:     data.ticket_id   || null,
     resolution: {
-      solution:   escalated ? null : answer,
+      solution:   escalated ? null : (answer || workflowMsg),
       source:     null,
       confidence: data.kb_confidence ?? 0,
       automated,
